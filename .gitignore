@@ -1,0 +1,13 @@
+# Node.js
+node_modules/
+.env
+uploads/
+dist/
+build/
+
+# Logs
+*.log
+
+# System files
+.DS_Store
+Thumbs.db
