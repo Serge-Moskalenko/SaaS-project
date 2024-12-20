@@ -10,7 +10,7 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/saas';
+const MONGO_URI = process.env.MONGO_URI || '';
 const STRIPE_SECRET = process.env.STRIPE_SECRET || '';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 
@@ -35,7 +35,7 @@ const User = mongoose.model('User', UserSchema);
 const upload = multer({ dest: 'uploads/' });
 
 // Middleware
-app.use(cors({ origin: 'http://localhost:3000' })); // Дозволяємо запити з фронтенду
+app.use(cors({ origin: 'https://saas-project-ygiz.onrender.com' })); // Дозволяємо запити з фронтенду
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

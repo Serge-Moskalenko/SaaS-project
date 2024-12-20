@@ -39,7 +39,7 @@ function App() {
       const formData = new FormData();
       formData.append('file', file);
   
-      const response = await fetch('http://localhost:5000/api/voice/transcribe', {
+      const response = await fetch('https://saas-project-backend.onrender.com/api/voice/transcribe', {
         method: 'POST',
         headers: {
           'clerk-user-id': 'YOUR_CLERK_USER_ID',
@@ -68,7 +68,7 @@ function App() {
   
   const handleCheckout = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/payment/create-checkout-session', {
+      const response = await fetch('https://saas-project-backend.onrender.com/api/payment/create-checkout-session', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
