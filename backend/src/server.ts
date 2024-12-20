@@ -1,4 +1,4 @@
-import express, { Request, Response, NextFunction } from 'express';
+import express, { Request, Response, NextFunction, RequestHandler } from 'express';
 import multer from 'multer';
 import mongoose from 'mongoose';
 import { OpenAI } from 'openai';
@@ -14,7 +14,7 @@ const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/saas';
 const STRIPE_SECRET = process.env.STRIPE_SECRET || '';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 
-const stripe = new Stripe(STRIPE_SECRET, { apiVersion: '2022-11-15' });
+const stripe = new Stripe(STRIPE_SECRET, { apiVersion: '2024-12-18.acacia' });
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
 // MongoDB Models
@@ -63,135 +63,134 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
 });
 
 // Routes
-app.post('/api/voice/transcribe', upload.single('file'), async (req: Request, res: Response) => {
-  const clerkUserId = req.headers['clerk-user-id'] as string;
+app.post(
+  '/api/voice/transcribe',
+  upload.single('file'),
+  (async (req: Request, res: Response) => {
+    try {
+      const clerkUserId = req.headers['clerk-user-id'] as string;
 
-  if (!clerkUserId) {
-    return res.status(401).json({ error: 'Unauthorized: Missing Clerk User ID' });
-  }
+      if (!clerkUserId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
 
-  try {
-    let user = await User.findOne({ clerkUserId });
+      const user = await User.findOne({ clerkUserId });
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
 
-    // Створюємо користувача, якщо він не існує
-    if (!user) {
-      user = new User({ clerkUserId, uploads: [], hasPaid: false });
+      if (!user.hasPaid && user.uploads.length >= 2) {
+        return res
+          .status(403)
+          .json({ error: 'Limit exceeded. Please make a payment to upload more files.' });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+      }
+
+      const transcription = `Mock transcription for file: ${req.file.originalname}`;
+
+      user.uploads.push({
+        fileName: req.file.originalname,
+        transcription,
+      });
       await user.save();
+
+      res.json({ transcription });
+    } catch (err) {
+      console.error('Error during transcription:', err);
+      res.status(500).json({ error: 'Failed to process transcription' });
     }
+  }) as RequestHandler
+);
 
-    // Перевіряємо ліміти
-    if (!user.hasPaid && user.uploads.length >= 2) {
-      return res.status(403).json({ error: 'Limit exceeded. Please make a payment to upload more files.' });
+app.post(
+  '/api/payment/webhook',
+  express.raw({ type: 'application/json' }),
+  (async (req: Request, res: Response) => {
+    try {
+      const sig = req.headers['stripe-signature'];
+      const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET || '';
+
+      if (!endpointSecret) {
+        return res.status(500).json({ error: 'Stripe webhook secret not configured' });
+      }
+
+      let event;
+      try {
+        event = stripe.webhooks.constructEvent(req.body, sig!, endpointSecret);
+      } catch (err) {
+        console.error('Webhook signature verification failed:', err);
+        return res.status(400).json({ error: 'Webhook signature verification failed' });
+      }
+
+      if (event.type === 'checkout.session.completed') {
+        const session = event.data.object as Stripe.Checkout.Session;
+        const clerkUserId = session.metadata?.clerkUserId;
+
+        if (clerkUserId) {
+          const user = await User.findOne({ clerkUserId });
+          if (user) {
+            user.hasPaid = true;
+            await user.save();
+          }
+        }
+      }
+
+      res.json({ received: true });
+    } catch (err) {
+      console.error('Error in webhook:', err);
+      res.status(500).json({ error: 'Internal server error' });
     }
+  }) as RequestHandler
+);
 
-    const file = req.file;
-    if (!file) {
-      return res.status(400).json({ error: 'No file uploaded' });
-    }
+app.post(
+  '/api/payment/create-checkout-session',
+  (async (req: Request, res: Response) => {
+    try {
+      const clerkUserId = req.headers['clerk-user-id'] as string;
 
-    const filePath = file.path;
+      if (!clerkUserId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
 
-    // Емуляція транскрипції (замініть на ваші API виклики)
-    const transcriptionResponse = { data: { text: `Mock transcription for ${file.originalname}` } };
-    const transcription = transcriptionResponse?.data?.text || 'No transcription available';
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price_data: {
+              currency: 'usd',
+              product_data: {
+                name: 'Unlimited Transcription Access',
+              },
+              unit_amount: 1000,
+            },
+            quantity: 1,
+          },
+        ],
+        mode: 'payment',
+        success_url: `${req.headers.origin}/success`,
+        cancel_url: `${req.headers.origin}/cancel`,
+        metadata: {
+          clerkUserId: clerkUserId,
+        },
+      });
 
-    // Додаємо інформацію в базу даних
-    user.uploads.push({
-      fileName: file.originalname,
-      transcription,
-    });
-    await user.save();
-
-    // Видаляємо файл після обробки
-    const fs = require('fs');
-    fs.unlink(filePath, (err: any) => {
-      if (err) console.error('Error deleting file:', err);
-    });
-
-    res.json({ transcription });
-  } catch (err) {
-    console.error('Error during transcription:', err);
-    res.status(500).json({ error: 'Failed to process transcription' });
-  }
-});
-
-app.post('/api/payment/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
-  const sig = req.headers['stripe-signature'];
-  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET || '';
-
-  if (!endpointSecret) {
-    return res.status(500).json({ error: 'Stripe webhook secret not configured' });
-  }
-
-  let event;
-  try {
-    event = stripe.webhooks.constructEvent(req.body, sig!, endpointSecret);
-  } catch (err) {
-    console.error('Webhook signature verification failed:', err);
-    return res.status(400).json({ error: 'Webhook signature verification failed' });
-  }
-
-  if (event.type === 'checkout.session.completed') {
-    const session = event.data.object as Stripe.Checkout.Session;
-    const clerkUserId = session.metadata?.clerkUserId;
-
-    if (clerkUserId) {
       const user = await User.findOne({ clerkUserId });
       if (user) {
         user.hasPaid = true;
         await user.save();
       }
+
+      res.json({ url: session.url });
+    } catch (err) {
+      console.error('Error creating Stripe session:', err);
+      res.status(500).json({ error: 'Failed to create Stripe session' });
     }
-  }
-
-  res.json({ received: true });
-});
-
-
-app.post('/api/payment/create-checkout-session', async (req: Request, res: Response) => {
-  const clerkUserId = req.headers['clerk-user-id'] as string;
-
-  if (!clerkUserId) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  try {
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price_data: {
-            currency: 'usd',
-            product_data: {
-              name: 'Unlimited Transcription Access',
-            },
-            unit_amount: 1000,
-          },
-          quantity: 1,
-        },
-      ],
-      mode: 'payment',
-      success_url: `${req.headers.origin}/success`,
-      cancel_url: `${req.headers.origin}/cancel`,
-      metadata: {
-        clerkUserId: clerkUserId,
-      },
-    });
-
-    // Update the user's payment status
-    const user = await User.findOne({ clerkUserId });
-    if (user) {
-      user.hasPaid = true;
-      await user.save();
-    }
-
-    res.json({ url: session.url });
-  } catch (err) {
-    console.error('Error creating Stripe session:', err);
-    res.status(500).json({ error: 'Failed to create Stripe session' });
-  }
-});
-
+  }) as RequestHandler
+);
 
 // Start the server
 app.listen(PORT, () => {
