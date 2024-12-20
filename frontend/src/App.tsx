@@ -160,6 +160,14 @@ function App() {
                     Sign Out
                   </button>
                 </SignOutButton>
+                <div className="mt-4">
+                  <a
+                    href="/transcription"
+                    className="text-blue-500 hover:underline text-lg"
+                  >
+                    Go to Transcription
+                  </a>
+                </div>
               </SignedIn>
             </div>
           }
