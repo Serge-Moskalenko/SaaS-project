@@ -16,6 +16,35 @@ function App() {
   const [transcription, setTranscription] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
 
+  // Create user in the database after registration
+  useEffect(() => {
+    const createUserInDatabase = async () => {
+      if (!userId) return;
+
+      try {
+        const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/users/create`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ clerkUserId: userId }),
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+          console.log('User created:', data.user);
+        } else {
+          console.error('Failed to create user:', data.error);
+        }
+      } catch (error) {
+        console.error('Error creating user:', error);
+      }
+    };
+
+    createUserInDatabase();
+  }, [userId]);
+
+  // Clear local storage when the user is not signed in
   useEffect(() => {
     if (!isSignedIn) {
       localStorage.clear();
@@ -82,7 +111,7 @@ function App() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'clerk-user-id': userId || '', // Replace with actual Clerk user ID
+            'clerk-user-id': userId || '',
           },
         }
       );
@@ -92,7 +121,7 @@ function App() {
       }
 
       const { url } = await response.json();
-      window.location.href = url; // Redirect to Stripe checkout
+      window.location.href = url;
     } catch (error) {
       console.error('Error during checkout:', error);
       alert(`Failed to initiate payment: ${error.message || 'Unknown error'}`);
@@ -102,7 +131,6 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Main Page */}
         <Route
           path="/"
           element={
@@ -132,26 +160,12 @@ function App() {
                     Sign Out
                   </button>
                 </SignOutButton>
-                <div className="mt-4">
-                  <a
-                    href="/transcription"
-                    className="text-blue-500 hover:underline text-lg"
-                  >
-                    Go to Transcription
-                  </a>
-                </div>
               </SignedIn>
             </div>
           }
         />
-
-        {/* Sign-In Page */}
         <Route path="/sign-in/*" element={<SignIn path="/sign-in" routing="path" />} />
-
-        {/* Sign-Up Page */}
         <Route path="/sign-up/*" element={<SignUp path="/sign-up" routing="path" />} />
-
-        {/* Transcription Page */}
         <Route
           path="/transcription"
           element={
@@ -186,20 +200,6 @@ function App() {
                         <p className="text-gray-800">{transcription}</p>
                       </div>
                     )}
-                    <button
-                      onClick={handleCheckout}
-                      className="bg-green-500 text-white mt-4 font-semibold py-2 px-4 rounded-md hover:bg-green-600"
-                    >
-                      Upgrade to Unlimited Access
-                    </button>
-                    <div className="mt-6 flex justify-center space-x-4">
-                      <UserButton />
-                      <SignOutButton>
-                        <button className="bg-red-500 text-white py-2 px-4 rounded hover:bg-red-600">
-                          Sign Out
-                        </button>
-                      </SignOutButton>
-                    </div>
                   </div>
                 </div>
               </SignedIn>
@@ -209,8 +209,6 @@ function App() {
             </>
           }
         />
-
-        {/* Fallback for Unknown Routes */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

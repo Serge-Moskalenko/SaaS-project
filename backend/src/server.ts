@@ -35,7 +35,7 @@ const User = mongoose.model('User', UserSchema);
 const upload = multer({ dest: 'uploads/' });
 
 // Middleware
-app.use(cors({ origin: 'https://saas-project-ygiz.onrender.com' })); // Дозволяємо запити з фронтенду
+app.use(cors({ origin: 'https://saas-project-ygiz.onrender.com' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -63,6 +63,51 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
 });
 
 // Routes
+app.post('/api/users/create', async (req: Request, res: Response) => {
+  try {
+    const { clerkUserId } = req.body;
+
+    if (!clerkUserId) {
+      return res.status(400).json({ error: 'Clerk User ID is required' });
+    }
+
+    const existingUser = await User.findOne({ clerkUserId });
+    if (existingUser) {
+      return res.status(200).json({ message: 'User already exists' });
+    }
+
+    const newUser = new User({ clerkUserId });
+    await newUser.save();
+
+    res.status(201).json({ message: 'User created successfully', user: newUser });
+  } catch (error) {
+    console.error('Error creating user:', error);
+    res.status(500).json({ error: 'Failed to create user' });
+  }
+});
+
+app.post('/api/webhooks/clerk', async (req: Request, res: Response) => {
+  try {
+    const { type, data } = req.body;
+
+    if (type === 'user.created') {
+      const clerkUserId = data.id;
+
+      const existingUser = await User.findOne({ clerkUserId });
+      if (!existingUser) {
+        const newUser = new User({ clerkUserId });
+        await newUser.save();
+        console.log('New user created:', newUser);
+      }
+    }
+
+    res.status(200).json({ message: 'Webhook processed successfully' });
+  } catch (error) {
+    console.error('Error processing webhook:', error);
+    res.status(500).json({ error: 'Failed to process webhook' });
+  }
+});
+
 app.post(
   '/api/voice/transcribe',
   upload.single('file'),
