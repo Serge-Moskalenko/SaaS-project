@@ -11,7 +11,7 @@ import {
 } from '@clerk/clerk-react';
 
 function App() {
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, userId } = useAuth();
   const [file, setFile] = useState<File | null>(null);
   const [transcription, setTranscription] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
@@ -33,48 +33,59 @@ function App() {
       alert('Please select a file first.');
       return;
     }
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File size exceeds the maximum limit of 5MB.');
+      return;
+    }
+
     setIsUploading(true);
-  
+
     try {
       const formData = new FormData();
       formData.append('file', file);
-  
-      const response = await fetch('https://saas-project-backend.onrender.com/api/voice/transcribe', {
-        method: 'POST',
-        headers: {
-          'clerk-user-id': 'YOUR_CLERK_USER_ID',
-        },
-        body: formData,
-      });
-  
+
+      const response = await fetch(
+        `${process.env.REACT_APP_BACKEND_URL}/api/voice/transcribe`,
+        {
+          method: 'POST',
+          headers: {
+            'clerk-user-id': userId || '',
+          },
+          body: formData,
+        }
+      );
+
       if (!response.ok) {
         const error = await response.json();
         alert(`Error: ${error.error}`);
         return;
       }
-  
+
       const data = await response.json();
       setTranscription(data.transcription || 'No transcription available');
       setFile(null);
       (document.getElementById('fileInput') as HTMLInputElement).value = '';
     } catch (error) {
       console.error('Error during file upload:', error);
-      alert('Failed to upload file.');
+      alert(`Failed to upload file: ${error.message || 'Unknown error'}`);
     } finally {
       setIsUploading(false);
     }
   };
-  
-  
+
   const handleCheckout = async () => {
     try {
-      const response = await fetch('https://saas-project-backend.onrender.com/api/payment/create-checkout-session', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'clerk-user-id': 'YOUR_CLERK_USER_ID', // Replace with actual Clerk user ID
-        },
-      });
+      const response = await fetch(
+        `${process.env.REACT_APP_BACKEND_URL}/api/payment/create-checkout-session`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'clerk-user-id': userId || '', // Replace with actual Clerk user ID
+          },
+        }
+      );
 
       if (!response.ok) {
         throw new Error('Failed to create checkout session');
@@ -84,26 +95,31 @@ function App() {
       window.location.href = url; // Redirect to Stripe checkout
     } catch (error) {
       console.error('Error during checkout:', error);
-      alert('Failed to initiate payment');
+      alert(`Failed to initiate payment: ${error.message || 'Unknown error'}`);
     }
   };
 
   return (
     <BrowserRouter>
       <Routes>
-        {/* Головна сторінка */}
+        {/* Main Page */}
         <Route
           path="/"
           element={
             <div className="min-h-screen flex flex-col items-center justify-center">
-              <header className="text-2xl font-bold mb-6">Welcome to SaaS Application</header>
+              <header className="text-2xl font-bold mb-6">
+                Welcome to SaaS Application
+              </header>
               <SignedOut>
                 <div>
                   <a href="/sign-in" className="text-blue-500 hover:underline">
                     Sign In
                   </a>{' '}
                   |{' '}
-                  <a href="/sign-up" className="text-blue-500 hover:underline ml-2">
+                  <a
+                    href="/sign-up"
+                    className="text-blue-500 hover:underline ml-2"
+                  >
                     Sign Up
                   </a>
                 </div>
@@ -117,7 +133,10 @@ function App() {
                   </button>
                 </SignOutButton>
                 <div className="mt-4">
-                  <a href="/transcription" className="text-blue-500 hover:underline text-lg">
+                  <a
+                    href="/transcription"
+                    className="text-blue-500 hover:underline text-lg"
+                  >
                     Go to Transcription
                   </a>
                 </div>
@@ -126,13 +145,13 @@ function App() {
           }
         />
 
-        {/* Сторінка для Sign In */}
+        {/* Sign-In Page */}
         <Route path="/sign-in/*" element={<SignIn path="/sign-in" routing="path" />} />
 
-        {/* Сторінка для Sign Up */}
+        {/* Sign-Up Page */}
         <Route path="/sign-up/*" element={<SignUp path="/sign-up" routing="path" />} />
 
-        {/* Сторінка для Voice-to-Text Transcription */}
+        {/* Transcription Page */}
         <Route
           path="/transcription"
           element={
@@ -140,7 +159,9 @@ function App() {
               <SignedIn>
                 <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
                   <div className="bg-white shadow-lg rounded-lg p-6 max-w-md text-center">
-                    <h1 className="text-2xl font-bold mb-4">Voice-to-Text Transcription</h1>
+                    <h1 className="text-2xl font-bold mb-4">
+                      Voice-to-Text Transcription
+                    </h1>
                     <input
                       id="fileInput"
                       type="file"
@@ -159,7 +180,9 @@ function App() {
                     </button>
                     {transcription && (
                       <div className="mt-4 p-4 bg-gray-50 rounded-md">
-                        <h3 className="text-lg font-semibold mb-2">Transcription:</h3>
+                        <h3 className="text-lg font-semibold mb-2">
+                          Transcription:
+                        </h3>
                         <p className="text-gray-800">{transcription}</p>
                       </div>
                     )}
@@ -187,7 +210,7 @@ function App() {
           }
         />
 
-        {/* Перенаправлення для невідомих маршрутів */}
+        {/* Fallback for Unknown Routes */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
