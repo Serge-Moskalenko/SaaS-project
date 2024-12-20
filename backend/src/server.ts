@@ -63,17 +63,19 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
 });
 
 // Routes
-app.post('/api/users/create', async (req: Request, res: Response) => {
+app.post('/api/users/create', async (req: Request, res: Response): Promise<void> => {
   try {
     const { clerkUserId } = req.body;
 
     if (!clerkUserId) {
-      return res.status(400).json({ error: 'Clerk User ID is required' });
+      res.status(400).json({ error: 'Clerk User ID is required' });
+      return;
     }
 
     const existingUser = await User.findOne({ clerkUserId });
     if (existingUser) {
-      return res.status(200).json({ message: 'User already exists' });
+      res.status(200).json({ message: 'User already exists' });
+      return;
     }
 
     const newUser = new User({ clerkUserId });
@@ -85,6 +87,9 @@ app.post('/api/users/create', async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to create user' });
   }
 });
+
+
+
 
 app.post('/api/webhooks/clerk', async (req: Request, res: Response) => {
   try {
