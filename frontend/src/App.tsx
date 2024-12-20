@@ -208,6 +208,20 @@ function App() {
                         <p className="text-gray-800">{transcription}</p>
                       </div>
                     )}
+                    <button
+                      onClick={handleCheckout}
+                      className="bg-green-500 text-white mt-4 font-semibold py-2 px-4 rounded-md hover:bg-green-600"
+                    >
+                      Upgrade to Unlimited Access
+                    </button>
+                    <div className="mt-6 flex justify-center space-x-4">
+                      <UserButton />
+                      <SignOutButton>
+                        <button className="bg-red-500 text-white py-2 px-4 rounded hover:bg-red-600">
+                          Sign Out
+                        </button>
+                      </SignOutButton>
+                    </div>
                   </div>
                 </div>
               </SignedIn>
@@ -217,6 +231,7 @@ function App() {
             </>
           }
         />
+
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
